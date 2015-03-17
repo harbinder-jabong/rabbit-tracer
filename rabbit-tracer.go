@@ -20,6 +20,7 @@ type Consumer struct {
 	tag     string
 	done    chan error
 	thread  int
+	tracerType string 
 }
 
 func init() {
@@ -93,6 +94,7 @@ func NewConsumer(tracerType string, tracerCount int) (*Consumer, error) {
 		tag:     cTag,
 		done:    make(chan error),
 		thread: tracerCount,
+		tracerType: tracerType,
 	}
 
 	var err error
@@ -180,7 +182,7 @@ func NewConsumer(tracerType string, tracerCount int) (*Consumer, error) {
 		return nil, fmt.Errorf("%d. Queue Consume: %s", c.thread, err)
 	}
 
-	go msgHandler(deliveries, c.done)
+	go msgHandler(deliveries, c.done, c.tracerType)
 
 	return c, nil
 }
@@ -201,18 +203,29 @@ func (c *Consumer) Shutdown() error {
 	return <-c.done
 }
 
-func msgHandler(deliveries <-chan amqp.Delivery, done chan error) {
+func msgHandler(deliveries <-chan amqp.Delivery, done chan error, tracerType string) {
 	for d := range deliveries {
 		msgcounter++
-		log.Printf(
-            "[%v]: %dByte Type:%q\nHeaders: \n%+v\nTime: %q\nExchange: %q\nRoutingKey: %q\nPayLoad: %s\n\n",
-      		d.DeliveryTag, len(d.Body), d.Type,
-            d.Headers,
-	        d.Timestamp.Format(time.UnixDate),
-        	d.Exchange,
-            d.RoutingKey,
-			string(d.Body),
-        )
+		if (tracerType == `SUB`) {
+			log.Printf(
+    	        "[%v]: %dByte Type:%q\nHeaders: \n%+v\nTime: %q\nExchange: %q\nRoutingKey: %q\n",
+      			d.DeliveryTag, len(d.Body), d.Type,
+            	d.Headers,
+	        	d.Timestamp.Format(time.UnixDate),
+        		d.Exchange,
+            	d.RoutingKey,
+        	)
+        } else {
+			log.Printf(
+            	"[%v]: %dByte Type:%q\nHeaders: \n%+v\nTime: %q\nExchange: %q\nRoutingKey: %q\nPayLoad: %s\n\n",
+      			d.DeliveryTag, len(d.Body), d.Type,
+            	d.Headers,
+	        	d.Timestamp.Format(time.UnixDate),
+        		d.Exchange,
+            	d.RoutingKey,
+				string(d.Body),			
+        	)
+        }	
 	    fmt.Printf("[%v]: %dB\n", d.DeliveryTag, len(d.Body))
 		d.Ack(false)
 /*
