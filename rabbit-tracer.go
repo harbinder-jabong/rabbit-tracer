@@ -30,9 +30,9 @@ func init() {
 func initLogRotate(tracerType string) {
 	logFile := ``
 	if (tracerType == `SUB`) {
-		logFile = conf.RabbitSub[`sub`].Logfile
+		logFile = conf.Sub[`client`].Logfile
 	} else {		
-		logFile = conf.RabbitPub[`pub`].Logfile
+		logFile = conf.Pub[`client`].Logfile
 	}
 
 	log.SetOutput(&lumberjack.Logger{
@@ -44,13 +44,12 @@ func initLogRotate(tracerType string) {
 }
 
 func Worker(tracerType string, done chan bool) {
-
-	tracerCount++
+    tracerCount++
 	if (tracerCount == 1) {
 		initLogRotate(tracerType)	
 	}
 	
-	log.Printf("Tracer %d Started\n", tracerCount)
+	log.Printf("Tracer %s %d Started\n", tracerType, tracerCount)
 
 	c, err := NewConsumer(tracerType, tracerCount)
 	if err != nil {
@@ -79,13 +78,13 @@ func NewConsumer(tracerType string, tracerCount int) (*Consumer, error) {
 	qName := ``
 	rKey :=``
 	if (tracerType == `SUB`) {
-		qName = conf.RabbitSub[`sub`].Queue
-		rKey = conf.RabbitSub[`sub`].Bindingkey
-		cTag = conf.RabbitSub[`sub`].Consumertag
+		qName = conf.Sub[`client`].Queue
+		rKey = conf.Sub[`client`].Bindingkey
+		cTag = conf.Sub[`client`].Consumertag
 	} else {
-		qName = conf.RabbitPub[`pub`].Queue
-		rKey = conf.RabbitPub[`pub`].Bindingkey
-		cTag = conf.RabbitPub[`pub`].Consumertag
+		qName = conf.Pub[`client`].Queue
+		rKey = conf.Pub[`client`].Bindingkey
+		cTag = conf.Pub[`client`].Consumertag
 	}
 
 	c := &Consumer{
