@@ -116,7 +116,7 @@ func NewConsumer(tracerType string, tracerCount int) (*Consumer, error) {
 	er := c.channel.Qos(
 		conf.Rabbit[`server`].Prefetchcount,
 		conf.Rabbit[`server`].Prefetchsize,
-		true,
+		false,
 	)
 	if er != nil {
 		fmt.Errorf("%d. Cannot set Qos: %s", c.thread, er)
