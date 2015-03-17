@@ -8,6 +8,8 @@ import (
 )
 type Config struct {
 	Rabbit        map[string]server  `toml:"rabbit"`
+	RabbitPub        map[string]pub  `toml:"rabbit"`
+	RabbitSub        map[string]sub  `toml:"rabbit"`
 	Tracer 		  map[string]logging  `toml:"tracer"`
 }
 
@@ -15,17 +17,25 @@ type server struct {
 	Uri string
 	Exchange string
 	Exchangetype  string
-	Queue string
-	Bindingkey string
-	Consumertag string
 	Lifetime time.Duration
 	Prefetchcount int
 	Prefetchsize int
 }
+type pub struct {
+	Queue string
+	Bindingkey string
+	Consumertag string
+	Logfile string
+}
+type sub struct {
+	Queue string
+	Bindingkey string
+	Consumertag string
+	Logfile string
+}
 
 type logging struct {
 	Logpath string
-	Logfile string
 	Logfilemaxsize int
 	Logfilemaxbackup int
 	Logfilemaxage int

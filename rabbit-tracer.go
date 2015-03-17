@@ -24,23 +24,35 @@ type Consumer struct {
 
 func init() {
 	conf = GetConfig()
-	initLogRotate()
+	//initLogRotate()
 }
 
-func initLogRotate() {
+func initLogRotate(tracerType string) {
+	logFile := ``
+	if (tracerType == `SUB`) {
+		logFile = conf.RabbitSub[`sub`].Logfile
+	} else {		
+		logFile = conf.RabbitPub[`pub`].Logfile
+	}
+
 	log.SetOutput(&lumberjack.Logger{
-		Filename:   conf.Tracer[`logging`].Logpath + conf.Tracer[`logging`].Logfile,
+		Filename:   conf.Tracer[`logging`].Logpath + logFile,
 		MaxSize:    conf.Tracer[`logging`].Logfilemaxsize, // megabytes
 		MaxBackups: conf.Tracer[`logging`].Logfilemaxbackup,
 		MaxAge:     conf.Tracer[`logging`].Logfilemaxage, // days
 	})
 }
 
-func Worker(done chan bool) {
+func Worker(tracerType string, done chan bool) {
+
 	tracerCount++
+	if (tracerCount == 1) {
+		initLogRotate(tracerType)	
+	}
+	
 	log.Printf("Tracer %d Started\n", tracerCount)
 
-	c, err := NewConsumer(tracerCount)
+	c, err := NewConsumer(tracerType, tracerCount)
 	if err != nil {
 		log.Fatalf("%s", err)
 	}
@@ -62,12 +74,24 @@ func Worker(done chan bool) {
     done <- true
 }
 
-func NewConsumer(tracerCount int) (*Consumer, error) {
+func NewConsumer(tracerType string, tracerCount int) (*Consumer, error) {
+	cTag := ``
+	qName := ``
+	rKey :=``
+	if (tracerType == `SUB`) {
+		qName = conf.RabbitSub[`sub`].Queue
+		rKey = conf.RabbitSub[`sub`].Bindingkey
+		cTag = conf.RabbitSub[`sub`].Consumertag
+	} else {
+		qName = conf.RabbitPub[`pub`].Queue
+		rKey = conf.RabbitPub[`pub`].Bindingkey
+		cTag = conf.RabbitPub[`pub`].Consumertag
+	}
 
 	c := &Consumer{
 		conn:    nil,
 		channel: nil,
-		tag:     conf.Rabbit[`server`].Consumertag,
+		tag:     cTag,
 		done:    make(chan error),
 		thread: tracerCount,
 	}
@@ -112,9 +136,9 @@ func NewConsumer(tracerCount int) (*Consumer, error) {
 		return nil, fmt.Errorf("%d. Exchange declare: %s", c.thread, err)
 	}
 
-	log.Printf("%d. Declared Exchange, declaring Queue %q", c.thread, conf.Rabbit[`server`].Queue)
+	log.Printf("%d. Declared Exchange, declaring Queue %q", c.thread, qName)
 	queue, err := c.channel.QueueDeclare(
-		conf.Rabbit[`server`].Queue, // name of the queue
+		qName, // name of the queue
 		true,      // durable
 		false,     // delete when usused
 		false,     // exclusive
@@ -130,12 +154,12 @@ func NewConsumer(tracerCount int) (*Consumer, error) {
 		queue.Name,
 		queue.Messages,
 		queue.Consumers,
-		conf.Rabbit[`server`].Bindingkey,
+		rKey,
 	)
 
 	if err = c.channel.QueueBind(
 		queue.Name, // name of the queue
-		conf.Rabbit[`server`].Bindingkey, // bindingKey
+		rKey, // bindingKey
 		conf.Rabbit[`server`].Exchange, // sourceExchange
 		false, // noWait
 		nil, // arguments
