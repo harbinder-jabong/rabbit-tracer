@@ -1,10 +1,12 @@
 // Tracer for consuming messages from rabbitMQ server for logging
+
 package rabbit_tracer
 
 import (
 	"fmt"
 	"log"
 	"time"
+	"encoding/json"
 	"github.com/streadway/amqp"
 	"gopkg.in/natefinch/lumberjack.v2"
 )
@@ -23,9 +25,40 @@ type Consumer struct {
 	tracerType string 
 }
 
+type MsgHeader struct {
+	Node string `json:"node"`
+	Connection string `json:"connection"`
+	Channel int `json:"channel"`
+	User string `json:"user"`
+	Vhost string `json:"vhost"`
+	Exchange string `json:"exchange_name"`
+	RoutingKeys []string `json:"routing_keys"`
+	Properties HeaderProps `json:"properties"`
+}
+
+type HeaderProps struct {
+	ContentType string `json:"content_type"`
+	MessageId string `json:"message_id"`
+	Timestamp int64 `json:"timestamp"`
+	ClientType string `json:"type"`
+	DeliveryMode int `json:"delivery_mode"`
+}
+
 func init() {
 	conf = GetConfig()
 	//initLogRotate()
+}
+
+func MapToStruct(m map[string]interface{}, val interface{}) error {
+	tmp, err := json.Marshal(m)
+	if err != nil {
+		return err
+	}
+	err = json.Unmarshal(tmp, val)
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 func initLogRotate(tracerType string) {
@@ -204,29 +237,40 @@ func (c *Consumer) Shutdown() error {
 }
 
 func msgHandler(deliveries <-chan amqp.Delivery, done chan error, tracerType string) {
+
 	for d := range deliveries {
 		msgcounter++
-		if (tracerType == `SUB`) {
-			log.Printf(
-    	        "[%v]: %dByte Type:%q\nHeaders: \n%+v\nTime: %q\nExchange: %q\nRoutingKey: %q\n",
-      			d.DeliveryTag, len(d.Body), d.Type,
-            	d.Headers,
-	        	d.Timestamp.Format(time.UnixDate),
-        		d.Exchange,
-            	d.RoutingKey,
-        	)
-        } else {
-			log.Printf(
-            	"[%v]: %dByte Type:%q\nHeaders: \n%+v\nTime: %q\nExchange: %q\nRoutingKey: %q\nPayLoad: %s\n\n",
-      			d.DeliveryTag, len(d.Body), d.Type,
-            	d.Headers,
-	        	d.Timestamp.Format(time.UnixDate),
-        		d.Exchange,
-            	d.RoutingKey,
-				string(d.Body),			
-        	)
-        }	
-	    fmt.Printf("[%v]: %dB\n", d.DeliveryTag, len(d.Body))
+		var hdrs MsgHeader
+		MapToStruct(d.Headers, &hdrs)
+
+		var payLoad string
+		if (tracerType == `PUB`) {
+			payLoad = string(d.Body)
+		}	
+		
+		var tStamp time.Time
+		tStamp = time.Unix(hdrs.Properties.Timestamp, 0)
+
+		log.Printf(
+        	"[%v]: [M:%s][T:%s] %dByte\nType:%q\nExchange: %q\nRoutingKey: %q\nHeaders: %+v\nPayLoad: %s\n\n",
+			d.DeliveryTag,
+    		hdrs.Properties.MessageId,
+    		tStamp.Format(time.Stamp),
+    		len(d.Body),
+    		hdrs.Properties.ClientType,
+    		d.Exchange,
+        	d.RoutingKey,
+        	d.Headers,
+			payLoad,			
+    	)
+        
+	    fmt.Printf("[%v]: [M:%s][T:%d] %dBytes\n",
+	    	d.DeliveryTag,
+	    	hdrs.Properties.MessageId,
+	    	hdrs.Properties.Timestamp,
+	    	len(d.Body),
+	    )
+
 		d.Ack(false)
 /*
 		if (msgcounter == 500) {
@@ -236,6 +280,6 @@ func msgHandler(deliveries <-chan amqp.Delivery, done chan error, tracerType str
 */
 	}
 
-	log.Printf("handle: deliveries channel closed")
+	log.Printf("msgHandler: Deliveries channel closed")
 	done <- nil
 }
